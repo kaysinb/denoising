@@ -121,7 +121,7 @@ if __name__ == '__main__':
 
     print('Training started ...')
     logs, best_model_path = train_unet(net, optimizer, criterion_cl, criterion_dn, train_loader, val_loader,
-                                       scheduler, n_epochs=2, display_step=1)
+                                       scheduler, n_epochs=25, display_step=2)
     print('Training finished!')
     logs.plot('val_loss', 'train_loss', 'val_dn_loss', path='./logs/loss.png')
     logs.plot('accuracy', path='./logs/accuracy.png')
