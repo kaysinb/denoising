@@ -30,8 +30,8 @@ if __name__ == '__main__':
     print(f'Your device is {DEVICE}')
     print('Test started ...')
     for clean, noisy in tqdm(zip(mel_df['sounds_clean'].values, mel_df['sounds_noisy'].values), total=len(mel_df)):
-        clean = clean.T
-        noisy = noisy.T
+        clean = clean
+        noisy = noisy
         clean_tensor = data_separation(clean).to(DEVICE)
         noisy_tensor = data_separation(noisy).to(DEVICE)
 

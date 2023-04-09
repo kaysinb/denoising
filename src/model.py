@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 from src.settings import *
 
@@ -44,15 +45,15 @@ class UEncoder(nn.Module):
         self.conv3 = make_conv_block(hidden_dim * 4, hidden_dim * 8)
 
         res_block_1 = [ResBlock(hidden_dim) for i in range(NUM_RES_BLOCKS)]
-        res_block_1.append(nn.MaxPool2d((2, 4)))
+        res_block_1.append(nn.MaxPool2d((2, 2)))
         self.res1 = nn.ModuleList(res_block_1)
 
         res_block_2 = [ResBlock(hidden_dim * 2) for i in range(NUM_RES_BLOCKS)]
-        res_block_2.append(nn.MaxPool2d((2, 3)))
+        res_block_2.append(nn.MaxPool2d((2, 2)))
         self.res2 = nn.ModuleList(res_block_2)
 
         res_block_3 = [ResBlock(hidden_dim * 4) for i in range(NUM_RES_BLOCKS)]
-        res_block_3.append(nn.MaxPool2d((4, 5)))
+        res_block_3.append(nn.MaxPool2d((4, 4)))
         self.res3 = nn.ModuleList(res_block_3)
 
     def forward(self, x):
@@ -79,9 +80,9 @@ class UDecoder(nn.Module):
     def __init__(self, hidden_dim=4):
         super(UDecoder, self).__init__()
         self.out_conv = make_conv_block(hidden_dim * 2, 1)
-        self.conv_tr_1 = nn.ConvTranspose2d(hidden_dim * 4, hidden_dim, kernel_size=(2, 4), stride=(2, 4))
-        self.conv_tr_2 = nn.ConvTranspose2d(hidden_dim * 12, hidden_dim * 2, kernel_size=(2, 3), stride=(2, 3))
-        self.up_3 = nn.Upsample(scale_factor=(4, 5), mode='bilinear', align_corners=True)
+        self.conv_tr_1 = nn.ConvTranspose2d(hidden_dim * 4, hidden_dim, kernel_size=(2, 2), stride=(2, 2))
+        self.conv_tr_2 = nn.ConvTranspose2d(hidden_dim * 12, hidden_dim * 2, kernel_size=(2, 2), stride=(2, 2))
+        self.up_3 = nn.Upsample(scale_factor=(4, 4), mode='bilinear', align_corners=True)
 
         self.res1 = nn.ModuleList([ResBlock(hidden_dim * 2) for i in range(NUM_RES_BLOCKS)])
         self.res2 = nn.ModuleList([ResBlock(hidden_dim * 4) for i in range(NUM_RES_BLOCKS)])
@@ -131,12 +132,14 @@ class UMelResNet(nn.Module):
         return x_classification, x_mel
 
     def is_noisy(self, x):
-        x_1, x_2, x_3, x_4 = self.encoder(x)
-        x_classification = self.soft_max(self.classification_block(x_4))
+        with torch.no_grad():
+            x_1, x_2, x_3, x_4 = self.encoder(x)
+            x_classification = self.soft_max(self.classification_block(x_4))
         out = x_classification.sum(dim=0)/x_classification.shape[0]
         return out[0].item() < out[1].item()
 
     def denoising(self, x):
-        x_1, x_2, x_3, x_4 = self.encoder(x)
-        x_mel = self.decoder(x_1, x_2, x_3, x_4)
+        with torch.no_grad():
+            x_1, x_2, x_3, x_4 = self.encoder(x)
+            x_mel = self.decoder(x_1, x_2, x_3, x_4)
         return x_mel

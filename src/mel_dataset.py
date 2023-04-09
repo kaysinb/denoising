@@ -2,9 +2,18 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from torch.utils.data import Dataset, DataLoader
-from torchvision.transforms import RandomCrop
-
+import pydoc
 from src.settings import *
+
+
+def object_from_dict(d, parent=None, **default_kwargs):
+    kwargs = d.copy()
+    object_type = kwargs.pop("type")
+    for name, value in default_kwargs.items():
+        kwargs.setdefault(name, value)
+    if parent is not None:
+        return getattr(parent, object_type)(**kwargs)
+    return pydoc.locate(object_type)(**kwargs)
 
 
 def get_mel_df(path: Path):
@@ -22,29 +31,26 @@ def get_mel_df(path: Path):
 
 class MelDataset(Dataset):
     # Data Loading
-    def __init__(self, mel_df):
+    def __init__(self, mel_df, train_ds=False):
         self.sounds_clean = mel_df['sounds_clean'].values
         self.sounds_noisy = mel_df['sounds_noisy'].values
         self.n_samples = len(self.sounds_clean)
-        self.random_crop = RandomCrop((M_SIZE, T_SIZE))
+        if train_ds:
+            self.transform = object_from_dict(train_aug)
+        else:
+            self.transform = object_from_dict(test_aug)
 
     # Indexing dataset[index]
     def __getitem__(self, index):
-        sample_clean = self.sounds_clean[index].T
-        sample_noisy = self.sounds_noisy[index].T
+        sample_clean = self.sounds_clean[index]
+        sample_noisy = self.sounds_noisy[index]
+        sample = np.append(sample_clean[None, :, :], sample_noisy[None, :, :],
+                           axis=0)
+        sample = torch.tensor(sample).type(torch.FloatTensor)
+        sample = self.transform(image=sample)["image"]
+        sample_clean = sample[0]
+        sample_noisy = sample[1]
 
-        if sample_clean.shape[1] > T_SIZE:
-            sample = np.append(sample_clean[None, :, :], sample_noisy[None, :, :],
-                               axis=0)
-            sample = torch.tensor(sample).type(torch.FloatTensor)
-            sample = self.random_crop(sample)
-            sample_clean = sample[0]
-            sample_noisy = sample[1]
-        else:
-            sample_clean = extend_sample(sample_clean)
-            sample_clean = torch.tensor(sample_clean).type(torch.FloatTensor)
-            sample_noisy = extend_sample(sample_noisy)
-            sample_noisy = torch.tensor(sample_noisy).type(torch.FloatTensor)
         return sample_clean[None, :, :], sample_noisy[None, :, :]
 
     # len(dataset)
@@ -52,22 +58,13 @@ class MelDataset(Dataset):
         return self.n_samples
 
 
-def extend_sample(sample):
-    if sample.shape[1] > 0:
-        while sample.shape[1] < T_SIZE:
-            sample = np.hstack((sample, sample))
-    return sample[:, :T_SIZE]
+def get_dataloader(train_path: Path, val_path: Path):
+    mel_df = get_mel_df(train_path)
+    train_set = MelDataset(mel_df, train_ds=True)
 
+    mel_df = get_mel_df(val_path)
+    val_set = MelDataset(mel_df, train_ds=False)
 
-def get_dataloader(path: Path):
-    mel_df = get_mel_df(path)
-    dataset = MelDataset(mel_df)
-
-    train_part = int(len(dataset) * 5 / 6)
-    val_part = int(len(dataset) * 1 / 6)
-
-    train_set, val_set = torch.utils.data.random_split(dataset, [train_part, val_part],
-                                                       generator=torch.Generator().manual_seed(42))
     train_loader = DataLoader(dataset=train_set, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(dataset=val_set, batch_size=BATCH_SIZE, shuffle=True)
 

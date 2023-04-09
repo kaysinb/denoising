@@ -103,14 +103,18 @@ def train_unet(net, optimizer, criterion_cl, criterion_dn, train_loader, val_loa
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     required = parser.add_argument_group('required arguments')
-    required.add_argument("-f", "--train_folder", help="train folder where located clean and noisy directories",
+    required.add_argument("-t", "--train_folder", help="train folder with clean and noisy directories",
+                          type=str, required=True)
+
+    required.add_argument("-v", "--validation_folder", help="validation folder with clean and noisy directories",
                           type=str, required=True)
 
     args = parser.parse_args()
     train_path = Path(args.train_folder)
+    val_path = Path(args.validation_folder)
     print(f'Your device is {DEVICE}')
     print('Dataloader creation ...')
-    train_loader, val_loader = get_dataloader(train_path)
+    train_loader, val_loader = get_dataloader(train_path, val_path)
     print('Creation completed')
 
     criterion_cl = nn.CrossEntropyLoss()
